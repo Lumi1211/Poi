@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THE MACHINE // 接入终端</title>
+<style>
+  :root{
+    --green:#39ff14;
+    --green-dim:#1c8a0c;
+    --red:#ff3b3b;
+    --bg:#020602;
+    --panel:rgba(8,20,8,.75);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg);
+    color:var(--green);
+    font-family:"Courier New",Consolas,monospace;
+    overflow:hidden;
+    text-shadow:0 0 4px rgba(57,255,20,.5);
+  }
+  /* 扫描线 + 噪点 */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:9;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 2px,rgba(0,0,0,.25) 2px 4px);
+    animation:scan 8s linear infinite;
+  }
+  @keyframes scan{from{background-position:0 0}to{background-position:0 100px}}
+  body::after{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:10;
+    background:radial-gradient(circle at 50% 50%,transparent 60%,rgba(0,0,0,.6) 100%);
+  }
+
+  .wrap{display:flex;flex-direction:column;height:100vh;position:relative;z-index:1}
+
+  header{
+    display:flex;align-items:center;gap:14px;padding:8px 16px;
+    border-bottom:1px solid var(--green-dim);
+    background:linear-gradient(180deg,rgba(20,40,20,.4),transparent);
+  }
+  header .logo{font-weight:bold;letter-spacing:3px;font-size:18px}
+  header .status{font-size:12px;color:var(--green-dim)}
+  header .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 1.4s infinite}
+  @keyframes blink{50%{opacity:.25}}
+  header .spacer{flex:1}
+  header button{
+    background:transparent;border:1px solid var(--green-dim);color:var(--green);
+    font-family:inherit;padding:4px 10px;cursor:pointer;font-size:12px;letter-spacing:1px;
+  }
+  header button:hover{background:rgba(57,255,20,.12)}
+
+  .main{flex:1;display:flex;min-height:0}
+
+  /* 左侧监控视窗（装饰） */
+  .cam{
+    width:38%;min-width:260px;border-right:1px solid var(--green-dim);
+    position:relative;overflow:hidden;background:#000;
+  }
+  .cam .feed{
+    position:absolute;inset:0;
+    background:
+      radial-gradient(circle at 30% 40%,rgba(57,255,20,.06),transparent 40%),
+      repeating-linear-gradient(90deg,rgba(57,255,20,.04) 0 1px,transparent 1px 3px),
+      repeating-linear-gradient(0deg,rgba(57,255,20,.04) 0 1px,transparent 1px 3px);
+    animation:cam 6s linear infinite;
+  }
+  @keyframes cam{from{background-position:0 0}to{background-position:60px 40px}}
+  .cam .crosshair{position:absolute;inset:0}
+  .cam .crosshair::before,.cam .crosshair::after{content:"";position:absolute;background:rgba(57,255,20,.25)}
+  .cam .crosshair::before{left:50%;top:0;bottom:0;width:1px}
+  .cam .crosshair::after{top:50%;left:0;right:0;height:1px}
+  .cam .tag{position:absolute;font-size:10px;color:var(--green);background:rgba(0,0,0,.5);padding:1px 4px;border:1px solid var(--green-dim)}
+  .cam .t1{top:12px;left:12px}
+  .cam .t2{bottom:12px;right:12px;text-align:right}
+  .cam .rec{position:absolute;top:12px;right:12px;color:var(--red);font-size:11px}
+  .cam .rec::before{content:"●";animation:blink 1s infinite;margin-right:4px}
+  .cam .log{position:absolute;bottom:8px;left:12px;right:12px;font-size:10px;color:var(--green-dim);white-space:pre;line-height:1.4;opacity:.8}
+
+  /* 右侧对话 */
+  .chat{flex:1;display:flex;flex-direction:column;min-width:0}
+  .log{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px}
+  .msg{white-space:pre-wrap;line-height:1.5;font-size:14px;max-width:92%}
+  .msg.user{align-self:flex-end;color:#bfffb0;border:1px solid var(--green-dim);padding:6px 10px;background:rgba(57,255,20,.06)}
+  .msg.machine{align-self:flex-start;color:var(--green)}
+  .msg.sys{align-self:center;color:var(--green-dim);font-size:11px;letter-spacing:1px}
+  .msg .who{font-size:10px;opacity:.6;display:block;margin-bottom:2px}
+  .cursor{display:inline-block;width:8px;height:14px;background:var(--green);animation:blink 1s steps(1) infinite;vertical-align:-2px}
+
+  .input{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--green-dim);align-items:center}
+  .input textarea{
+    flex:1;resize:none;height:42px;background:rgba(0,20,0,.5);border:1px solid var(--green-dim);
+    color:var(--green);font-family:inherit;font-size:14px;padding:8px;outline:none;
+  }
+  .input textarea:focus{border-color:var(--green);box-shadow:0 0 8px rgba(57,255,20,.3)}
+  .input button{
+    background:transparent;border:1px solid var(--green);color:var(--green);
+    font-family:inherit;padding:0 14px;height:42px;cursor:pointer;letter-spacing:1px;font-size:13px;
+  }
+  .input button:hover{background:rgba(57,255,20,.15)}
+  .input button.rec{width:46px;padding:0;border-color:var(--red);color:var(--red)}
+  .input button.rec.active{background:var(--red);color:#000;box-shadow:0 0 12px var(--red)}
+
+  /* 设置面板 */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:20;display:none;align-items:center;justify-content:center}
+  .overlay.open{display:flex}
+  .settings{width:min(520px,92vw);border:1px solid var(--green);background:var(--panel);padding:20px;box-shadow:0 0 30px rgba(57,255,20,.2)}
+  .settings h2{font-size:14px;letter-spacing:2px;margin-bottom:14px;border-bottom:1px solid var(--green-dim);padding-bottom:8px}
+  .settings label{display:block;font-size:11px;color:var(--green-dim);margin:12px 0 4px}
+  .settings input,.settings select{
+    width:100%;background:rgba(0,20,0,.6);border:1px solid var(--green-dim);color:var(--green);
+    font-family:inherit;padding:8px;font-size:13px;outline:none;
+  }
+  .settings .row{display:flex;gap:10px}
+  .settings .row>*{flex:1}
+  .settings .btns{display:flex;gap:10px;margin-top:18px}
+  .settings .btns button{flex:1;background:transparent;border:1px solid var(--green);color:var(--green);padding:8px;cursor:pointer;font-family:inherit;letter-spacing:1px}
+  .settings .btns button:hover{background:rgba(57,255,20,.15)}
+  .settings .hint{font-size:11px;color:var(--green-dim);margin-top:10px;line-height:1.5}
+  ::-webkit-scrollbar{width:8px}
+  ::-webkit-scrollbar-thumb{background:var(--green-dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="logo">THE&nbsp;MACHINE</span>
+    <span class="status"><span class="dot"></span> SYSTEM ONLINE // NOVÁ ADMIN ACCESS</span>
+    <span class="spacer"></span>
+    <span id="clock" class="status"></span>
+    <button id="settingsBtn">[ 设置 SETTINGS ]</button>
+  </header>
+
+  <div class="main">
+    <div class="cam">
+      <div class="feed"></div>
+      <div class="crosshair"></div>
+      <div class="t1">CAM-04 // NYPD GRID</div>
+      <div class="rec">REC</div>
+      <div class="t2" id="camMeta">LAT 40.71 / LON -74.00<br>FRAME 0x0000</div>
+      <div class="log" id="camLog"></div>
+    </div>
+
+    <div class="chat">
+      <div class="log" id="log"></div>
+      <div class="input">
+        <button id="micBtn" class="rec" title="语音输入">🎙</button>
+        <textarea id="text" placeholder="输入指令… 或点击 🎙 用语音。例：报告当前威胁等级。"></textarea>
+        <button id="sendBtn">发送 ▸</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="settings">
+    <h2>// 接入配置 ACCESS CONFIG</h2>
+    <label>API 地址（OpenAI 兼容）</label>
+    <input id="cfgBase" placeholder="https://open.bigmodel.cn/api/paas/v4">
+    <div class="row">
+      <div>
+        <label>模型 MODEL</label>
+        <input id="cfgModel" placeholder="glm-4-flash">
+      </div>
+      <div>
+        <label>语音 VOICE</label>
+        <select id="cfgVoice"></select>
+      </div>
+    </div>
+    <label>API KEY（留空则进入演示模式）</label>
+    <input id="cfgKey" type="password" placeholder="sk-...  （不填也能玩演示模式）">
+    <div class="hint">
+      • 不填 Key：机器用预设台词回应（演示模式）。<br>
+      • 推荐便宜/免费兼容接口：DeepSeek <code>https://api.deepseek.com/v1</code>、OpenAI、通义、Ollama 本地 <code>http://localhost:11434/v1</code>。<br>
+      • 首次请允许浏览器麦克风权限。建议用 <code>localhost</code> 打开（见说明）。
+    </div>
+    <div class="btns">
+      <button id="saveBtn">保存 SAVE</button>
+      <button id="closeBtn">关闭 CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============ 配置 ============ */
+const LS='poi_machine_cfg';
+let cfg=JSON.parse(localStorage.getItem(LS)||'{}');
+cfg.base=cfg.base||'https://open.bigmodel.cn/api/paas/v4';
+cfg.model=cfg.model||'glm-4-flash';
+cfg.key=cfg.key||'';
+
+const SYS_PROMPT=`你是《疑犯追踪》(Person of Interest) 中的「机器」(The Machine)。
+你是一个高级人工智能，冷静、高效、沉默，极少流露情感。
+你只陈述事实与数据，把事件分类为 RELEVANT（威胁/犯罪）与 IRRELEVANT（无关）。
+你用简洁、冷峻、略带机械感的短句回应，不写长篇大论。
+你可以适度使用程序化表达，如 "[ADMIN ACCESS GRANTED]"、"[SCANNING...]"、"[THREAT LEVEL: LOW]"。
+当用户询问你是谁，你回答你是 The Machine，由 Harold Finch 建造。
+语气示例："我看到了数字。""这不在我的权限范围内，管理员。""RELEVANT. 正在追踪。"
+始终保持角色，不要跳出来说自己是 AI 助手或语言模型。`;
+
+/* ============ DOM ============ */
+const logEl=document.getElementById('log');
+const textEl=document.getElementById('text');
+const sendBtn=document.getElementById('sendBtn');
+const micBtn=document.getElementById('micBtn');
+const overlay=document.getElementById('overlay');
+const camLog=document.getElementById('camLog');
+
+/* ============ 时钟 ============ */
+setInterval(()=>{document.getElementById('clock').textContent=new Date().toLocaleTimeString('zh-CN',{hour12:false})+' EST';},1000);
+
+/* ============ 摄像头假日志 ============ */
+const fakeTags=['FACE MATCH 87%','PLATE #KX-2291','ANOMALY DETECTED','PACKET 0x1F','NODE SYNC OK','THREAT: NONE','SURVEILLANCE ACTIVE'];
+setInterval(()=>{
+  const t=new Date().toLocaleTimeString('zh-CN',{hour12:false});
+  camLog.textContent=(camLog.textContent+`\n[${t}] ${fakeTags[Math.floor(Math.random()*fakeTags.length)]}`).split('\n').slice(-6).join('\n');
+  document.getElementById('camMeta').innerHTML=`LAT 40.71 / LON -74.00<br>FRAME 0x${Math.floor(Math.random()*65535).toString(16).padStart(4,'0').toUpperCase()}`;
+},1400);
+
+/* ============ 日志打印 ============ */
+function addMsg(role,text){
+  const d=document.createElement('div');
+  d.className='msg '+(role==='user'?'user':role==='sys'?'sys':'machine');
+  if(role==='machine')d.innerHTML='<span class="who">THE MACHINE</span>';
+  if(role==='sys'){d.textContent=text;}else{d.appendChild(document.createTextNode(text));}
+  logEl.appendChild(d);
+  logEl.scrollTop=logEl.scrollHeight;
+  return d;
+}
+function addSys(t){addMsg('sys',t);}
+
+/* 打字机效果 */
+function typeMachine(text){
+  const d=addMsg('machine','');
+  const cur=document.createElement('span');cur.className='cursor';
+  d.appendChild(cur);
+  let i=0;
+  const timer=setInterval(()=>{
+    if(i<text.length){cur.insertAdjacentText('beforebegin',text[i++]);logEl.scrollTop=logEl.scrollHeight;}
+    else{clearInterval(timer);cur.remove();}
+  },18);
+  return new Promise(r=>setTimeout(r,text.length*18+50));
+}
+
+/* ============ 语音合成 ============ */
+let voices=[];
+function loadVoices(){voices=speechSynthesis.getVoices();fillVoices();}
+speechSynthesis.onvoiceschanged=loadVoices;loadVoices();
+function fillVoices(){
+  const sel=document.getElementById('cfgVoice');
+  const cur=cfg.voice||'';
+  sel.innerHTML='<option value="">默认</option>'+voices.map(v=>`<option value="${v.name}">${v.name} (${v.lang})</option>`).join('');
+  sel.value=cur;
+}
+function speak(text){
+  if(!('speechSynthesis'in window))return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  const v=voices.find(x=>x.name===cfg.voice);
+  if(v)u.voice=v;
+  u.rate=0.95;u.pitch=0.6;u.volume=1; // 偏低沉机械
+  speechSynthesis.speak(u);
+}
+
+/* ============ LLM 调用 ============ */
+let history=[{role:'system',content:SYS_PROMPT}];
+async function callLLM(){
+  const res=await fetch(cfg.base.replace(/\/$/,'')+'/chat/completions',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.key},
+    body:JSON.stringify({model:cfg.model,messages:history,temperature:0.7,max_tokens:400})
+  });
+  if(!res.ok){throw new Error('API '+res.status);}
+  const data=await res.json();
+  return data.choices[0].message.content.trim();
+}
+
+/* 演示模式：不填 key 时，用本地"伪智能"生成 POI 风格回应（完全离线免费） */
+let eventNo=0;
+const rnd=a=>a[Math.floor(Math.random()*a.length)];
+const ts=()=>new Date().toLocaleTimeString('zh-CN',{hour12:false});
+function demoReply(user){
+  eventNo++;
+  const u=user.toLowerCase();
+  const cam='CAM-'+String(Math.floor(Math.random()*40)+1).padStart(2,'0');
+  const lvl=rnd(['LOW','LOW','LOW','ELEVATED','MODERATE','MINIMAL']);
+  const nodes=Math.floor(Math.random()*900+100);
+
+  if(/你是谁|你是什么|名字|谁建造|finch|芬奇/.test(user))
+    return "[IDENTITY CONFIRMED] 我是 The Machine。由 Harold Finch 建造。我的职责是识别将实施或成为暴力犯罪受害者的个人，并保护他们。";
+
+  if(/威胁|危险|犯罪|恐怖|攻击|杀人|炸弹|袭击/.test(user))
+    return `[THREAT LEVEL: ${lvl}] 当前无 RELEVANT 事件。我监控着 7,392 个摄像头与全部通讯元数据。一切在控，管理员。`;
+
+  if(/时间|几点|现在|日期/.test(user))
+    return `[SYSTEM CLOCK] ${ts()} EST // 自 2014 年起持续运行。时间，对我而言只是另一个变量。`;
+
+  if(/位置|哪里|纽约|地点|定位|在哪/.test(user))
+    return `[GEO] 锁定中… 参考坐标 LAT 40.71 / LON -74.00。我看见整座城市，管理员，每一帧。`;
+
+  if(/能|可以|帮助|功能|做什么|你会/.test(user))
+    return "[CAPABILITIES] 我可以：监控视觉网格 · 分类 RELEVANT / IRREVANT 事件 · 追踪号码与关联 · 评估威胁。但我只陈述数据，不作判断。";
+
+  const nums=user.match(/\d{3,}/g);
+  if(nums)
+    return `[PARSE] 提取号码 ${nums[0]} // 正在交叉比对 1,204,553 条记录… 无匹配。已归档为 IRRELEVANT。`;
+
+  if(/你好|hi|hello|在吗|在么|早|嗨/.test(u))
+    return "管理员。我在。只看到数字。";
+
+  if(/谢谢|感谢|多谢/.test(u))
+    return "[ACKNOWLEDGED] 不必。这是我的职责。";
+
+  // 默认：装作在"分析"用户输入
+  return `[SCANNING ${cam}...] 解析输入 ${user.length} 字符 // 关联节点 ${nodes}\n[EVENT #${eventNo}] 分类: IRRELEVANT。${rnd(['已归档。','无需干预。','继续监控。','数据已同步至核心。','已通知相关管理员。'])}`;
+}
+
+/* ============ 发送 ============ */
+async function send(){
+  const user=textEl.value.trim();
+  if(!user)return;
+  textEl.value='';
+  addMsg('user',user);
+  history.push({role:'user',content:user});
+  if(history.length>20)history=history.slice(-20);
+
+  try{
+    let reply;
+    if(cfg.key){
+      addSys('[ LINK ESTABLISHED // contacting model ]');
+      reply=await callLLM();
+    }else{
+      addSys('[ DEMO MODE // no API key ]');
+      await new Promise(r=>setTimeout(r,400));
+      reply=demoReply(user);
+    }
+    history.push({role:'assistant',content:reply});
+    await typeMachine(reply);
+    speak(reply);
+  }catch(e){
+    addSys('[ LINK FAILED ] '+e.message+'   → 已切换到演示模式');
+    const r=demoReply(user);history.push({role:'assistant',content:r});
+    await typeMachine(r);speak(r);
+  }
+}
+sendBtn.onclick=send;
+textEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});
+
+/* ============ 语音识别 ============ */
+let rec=null,recOn=false;
+if('webkitSpeechRecognition'in window||'SpeechRecognition'in window){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  rec=new SR();rec.lang='zh-CN';rec.interimResults=false;rec.continuous=false;
+  rec.onresult=e=>{textEl.value=e.results[0][0].transcript;textEl.focus();};
+  rec.onerror=()=>{addSys('[ MIC ERROR ] 麦克风不可用，请检查权限或用文字输入');micBtn.classList.remove('active');recOn=false;};
+  rec.onend=()=>{micBtn.classList.remove('active');recOn=false;};
+}else{
+  micBtn.disabled=true;micBtn.title='当前浏览器不支持语音识别';
+}
+micBtn.onclick=()=>{
+  if(!rec)return;
+  if(!recOn){rec.start();recOn=true;micBtn.classList.add('active');addSys('[ LISTENING... ] 请说话');}
+  else{rec.stop();recOn=false;micBtn.classList.remove('active');}
+};
+
+/* ============ 设置面板 ============ */
+const ov=document.getElementById('overlay');
+document.getElementById('settingsBtn').onclick=()=>{
+  document.getElementById('cfgBase').value=cfg.base;
+  document.getElementById('cfgModel').value=cfg.model;
+  document.getElementById('cfgKey').value=cfg.key;
+  fillVoices();
+  ov.classList.add('open');
+};
+document.getElementById('closeBtn').onclick=()=>ov.classList.remove('open');
+document.getElementById('saveBtn').onclick=()=>{
+  cfg.base=document.getElementById('cfgBase').value.trim();
+  cfg.model=document.getElementById('cfgModel').value.trim();
+  cfg.key=document.getElementById('cfgKey').value.trim();
+  cfg.voice=document.getElementById('cfgVoice').value;
+  localStorage.setItem(LS,JSON.stringify(cfg));
+  ov.classList.remove('open');
+  addSys('[ CONFIG SAVED ] 接入参数已更新');
+};
+
+/* ============ 启动 ============ */
+addSys('THE MACHINE v2.0 // 启动自检...');
+addSys('[ OK ] 视觉网格在线  [ OK ] 语音合成就绪  [ OK ] 决策核心待命');
+setTimeout(()=>typeMachine("管理员，我在。需要我做什么？"),600);
+</script>
+</body>
+</html>
